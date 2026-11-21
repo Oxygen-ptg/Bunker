@@ -28,7 +28,7 @@ const yrs=n=>n%10==1&&n%100!=11?'год':[2,3,4].includes(n%10)&&![12,13,14].inc
 firebase.initializeApp({apiKey:'AIzaSyCcNv5vEXpdwNrvAQodgYc_bKMo8p_UrAk',authDomain:'bunker-ad1fb.firebaseapp.com',databaseURL:'https://bunker-ad1fb-default-rtdb.firebaseio.com',projectId:'bunker-ad1fb',appId:'1:314157592540:web:f21d380d4b0852d477a919'});
 const db=firebase.database();let RC,UID,_u=null;
 let S,V,isHost=false,lastSeq=null,tok=sessionStorage.btok||(sessionStorage.btok=Math.random().toString(36).slice(2));
-const P=id=>S.pl.find(q=>q.id==id),lg=t=>{S.log.push(t);if(S.log.length>150)S.log.shift()},
+const P=id=>S.pl.find(q=>q.id==id),lg=(t,v)=>{S.log.push({t,v});if(S.log.length>150)S.log.shift()},
 oth=p=>{const a=S.pl.filter(q=>q!==p);return a.length?pick(a).name:'?'};
 
 /* ---------- файл сценария ---------- */
@@ -62,24 +62,24 @@ function gen(c,sx,p,keep){const n=c.n;
  return{t:c.g?`${nm} (${c.g[gi]})`+(ab&&!sp?' — '+ab:''):nm,b:nm,gi,ab}}
 function mk(cn,p,keep=1){const ps=cn.map(n=>gen(S.sc.cats.find(c=>c.n==n),p.sx,p,keep)),f={t:ps.map(x=>x.t).join(' · '),ab:ps[0].ab||'',b:ps[0].b,gi:ps[0].gi,cn};
  if(/^Професс/.test(cn[0])&&/^Охотник за головами/.test(f.b||''))f.p='Цель: '+oth(p);return f}
-function deal(p){p.f=[];p.x=[];p.sx=Math.random()<.5?'м':'ж';
+function deal(p){p.f=[];p.x=[];p.undo=null;p.sx=Math.random()<.5?'м':'ж';
  for(const g of S.plan){const n=/^Спец/.test(g[0])?2:1;for(let j=0;j<n;j++){const f=mk(g,p);f.k=lab(g)+(n>1?' '+(j+1):'');f.r=f.u=false;
   const ru=RULES.find(x=>x.r.test(f.ab||f.t));f.use=/^(Професс|Спец)/.test(g[0])&&!(ru&&ru.auto);p.f.push(f)}}
  if(p.f.some(f=>/^Бродячий торговец/.test(f.b||'')))p.x.push({t:'Свиток Желаний',r:false})}
 
 /* ---------- способности ---------- */
-const ex=(p,t)=>p.x.push({t,r:false}),gf=(q,k)=>q.f.find(f=>f.k==k),
-rr=(q,f)=>{if(f.lock||/^Пол/.test(f.cn[0]))return;const n=mk(f.cn,q);Object.assign(f,{t:n.t,ab:n.ab,b:n.b,gi:n.gi,p:n.p})},
+const dsc=x=>`«${x.k}»: было «${x.o}», стало «${x.n}»`,ex=(p,t)=>p.x.push({t,r:false}),gf=(q,k)=>q.f.find(f=>f.k==k),
+rr=(q,f)=>{if(f.lock||/^Пол/.test(f.cn[0]))return null;const o=f.t,n=mk(f.cn,q);Object.assign(f,{t:n.t,ab:n.ab,b:n.b,gi:n.gi,p:n.p});return{k:f.k,o,n:f.t,r:f.r}},
 hf=q=>q.f.find(f=>/^Здоровье/.test(f.cn[0])),lvl=()=>S.sc.cats.find(c=>/^Здоровье/.test(c.n)).g,
 sh=(f,g)=>{f.gi=g;f.t=g?`${f.b} (${lvl()[g]})`:cap(lvl()[0])},
 sw=(a,b)=>['t','ab','b','gi','p'].forEach(k=>{[a[k],b[k]]=[b[k],a[k]]}),
 others=p=>S.pl.filter(q=>q.al&&q!==p);
 const RULES=[
 {r:/перебрасывать результат кубика|Всегда добавляй \+2/,auto:1},
-{r:/выклянчить/,f:p=>{const c=S.sc.cats.filter(c=>/^(Подсумок|Телега)/.test(c.n));if(!c.length)return false;ex(p,pick(pick(c).items).trim());return p.name+' выклянчивает себе предмет'}},
-{r:/добавить в инвентарь (?!предмет)/,f:(p,m,t)=>{const x=t.match(/добавить в инвентарь (.+?)(?: или |\(| которые|$)/)[1].trim();ex(p,x);return `${p.name} добавляет в инвентарь: ${x}`}},
+{r:/выклянчить/,f:p=>{const c=S.sc.cats.filter(c=>/^(Подсумок|Телега)/.test(c.n));if(!c.length)return false;const it=pick(pick(c).items).trim();ex(p,it);return{l:p.name+' выклянчивает себе предмет',p:'Вы получили: '+it}}},
+{r:/добавить в инвентарь (?!предмет)/,f:(p,m,t)=>{const x=t.match(/добавить в инвентарь (.+?)(?: или |\(| которые|$)/)[1].trim();ex(p,x);return{l:`${p.name} добавляет предмет в инвентарь`,p:`В инвентарь добавлено: ${x}`}}},
 {r:/скопировать профессию/,n:'t',f:(p,m)=>{const q=P(m.t),f=q.f.find(f=>/^Професс/.test(f.cn[0]));if(!f)return false;ex(p,'Профессия (копия): '+f.b);return `${p.name} копирует профессию игрока ${q.name}`}},
-{r:/изменить характер/,n:'t',f:(p,m)=>{const q=P(m.t),f=q.f.find(f=>/^Черта/.test(f.cn[0]));if(!f)return false;rr(q,f);return `${p.name} меняет характер игрока ${q.name} на случайный`}},
+{r:/изменить характер/,n:'t',f:(p,m)=>{const q=P(m.t),f=q.f.find(f=>/^Черта/.test(f.cn[0]));if(!f)return false;const x=rr(q,f);if(!x)return false;return x.r?{l:`${p.name} меняет характер игрока ${q.name}: ${dsc(x)}`}:{l:`${p.name} меняет характер игрока ${q.name} на случайный`,p:`Ваш характер изменён: ${dsc(x)}`,pv:q.id}}},
 {r:/уменьшить степень болезни/,n:'t',f:(p,m)=>{const q=P(m.t),f=hf(q);if(!f||f.gi==null||f.gi<2)return false;sh(f,f.gi-1);return `${p.name} облегчает болезнь игрока ${q.name} на 1 ступень`}},
 {r:/устранить физический недуг|вылечить одного игрока/,n:'t',f:(p,m)=>{const q=P(m.t),f=hf(q);if(!f||f.gi==null||f.gi<1||f.gi>=lvl().length-1)return false;sh(f,0);return `${p.name} лечит игрока ${q.name}`}},
 {r:/вернутся в игру/,d:1,f:p=>{if(p.al)return false;deal(p);p.al=true;return `${p.name} возвращается в игру новым персонажем`}},
@@ -89,12 +89,12 @@ const RULES=[
 {r:/голос считается за два/,f:p=>{p.dbl=1;return `${p.name}: голос считается за два в этом раунде`}},
 {r:/отменить один голос/,f:p=>{p.cnl=1;return `${p.name} отменит один голос против себя в этом раунде`}},
 {r:/дуэлью/,f:p=>{const a=others(p);if(a.length<2)return false;const d=[];while(d.length<2)d.push(a.splice(rnd(0,a.length-1),1)[0].id);S.duel=d;return `${p.name} объявляет дуэль! В ближайшем голосовании участвуют только ${d.map(x=>P(x).name).join(' и ')}`}},
-{r:/перебросить любую случайную|вытянуть случайную характеристику/,f:p=>{const a=p.f.filter(f=>!f.lock);if(!a.length)return false;rr(p,pick(a));return `${p.name} перебрасывает одну из своих характеристик`}},
-{r:/вытянуть определенную/,n:'k',f:(p,m)=>{const f=gf(p,m.k);if(!f)return false;rr(p,f);return `${p.name} перебрасывает характеристику «${m.k}»`}},
+{r:/перебросить любую случайную|вытянуть случайную характеристику/,f:p=>{const a=p.f.filter(f=>!f.lock&&!/^Пол/.test(f.cn[0]));if(!a.length)return false;const x=rr(p,pick(a));if(!x)return false;return x.r?{l:`${p.name} перебрасывает ${dsc(x)}`}:{l:`${p.name} перебрасывает одну из своих характеристик`,p:`Вы перебросили ${dsc(x)}`}}},
+{r:/вытянуть определенную/,n:'k',f:(p,m)=>{const f=gf(p,m.k),x=f&&rr(p,f);if(!x)return false;return x.r?{l:`${p.name} перебрасывает ${dsc(x)}`}:{l:`${p.name} перебрасывает характеристику «${m.k}»`,p:`Вы перебросили ${dsc(x)}`}}},
 {r:/раскрыть одну случайную/,f:p=>{const a=others(p).filter(q=>q.f.some(f=>!f.r));if(!a.length)return false;const q=pick(a),f=pick(q.f.filter(f=>!f.r));f.r=1;return `${q.name} вынужден раскрыть «${f.k}»: ${f.t}`}},
 {r:/открыть одну свою/,n:'k',f:(p,m)=>{const f=gf(p,m.k);if(!f||f.r)return false;f.r=1;return `${p.name} открывает «${f.k}»: ${f.t}`}},
-{r:/дополнительную характеристику/,n:t=>/определенному/.test(t)?'t':'',f:(p,m,t)=>{const q=/определенному/.test(t)?P(m.t):pick(others(p));if(!q)return false;ex(q,mk(pick(S.plan.filter(g=>!/^Спец/.test(g[0]))),q).t);return `${p.name} добавляет игроку ${q.name} дополнительную характеристику`}},
-{r:/украсть характеристику/,n:'tk',f:(p,m)=>{const q=P(m.t),f=gf(q,m.k);if(!f||f.lock)return false;ex(p,f.t);rr(q,f);return `${p.name} крадёт у ${q.name} характеристику «${m.k}»`}},
+{r:/дополнительную характеристику/,n:t=>/определенному/.test(t)?'t':'',f:(p,m,t)=>{const q=/определенному/.test(t)?P(m.t):pick(others(p));if(!q)return false;const nt=mk(pick(S.plan.filter(g=>!/^Спец/.test(g[0]))),q).t;ex(q,nt);return{l:`${p.name} добавляет игроку ${q.name} дополнительную характеристику`,p:`Вам добавлена дополнительная характеристика: ${nt}`,pv:q.id}}},
+{r:/украсть характеристику/,n:'tk',f:(p,m)=>{const q=P(m.t),f=gf(q,m.k);if(!f||f.lock)return false;const old=f.t;ex(p,old);rr(q,f);return{l:`${p.name} крадёт у ${q.name} характеристику «${m.k}»`,p:`Вы украли: ${old}`}}},
 {r:/скопировать характеристику/,n:'tk',f:(p,m)=>{const q=P(m.t),f=gf(q,m.k);if(!f)return false;ex(p,f.t);return `${p.name} копирует у ${q.name} характеристику «${m.k}»`}},
 {r:/обменять характеристику/,n:'tk',f:(p,m)=>{const q=P(m.t),f=gf(q,m.k),g=gf(p,m.k);if(!f||!g||f.lock||g.lock)return false;sw(f,g);return `${p.name} обменивается с ${q.name} характеристикой «${m.k}»`}},
 {r:/поменяться характеристиками/,n:'tk',f:(p,m)=>{const q=P(m.t);if(!gf(q,m.k))return false;S.asks.push({id:S.aid++,from:p.id,to:q.id,k:m.k});return `${p.name} предлагает ${q.name} поменяться характеристикой «${m.k}»`}},
@@ -122,9 +122,9 @@ function act(i,m){const p=P(i);if(!p)return;const h=!!p.host,A=m.a;
  else if(A=='rev'){const f=p.f[m.fi];if(f)f.r=1}
  else if(A=='revx'){const x=p.x[m.i];if(x)x.r=1}
  else if(A=='use'){const f=p.f[m.fi];if(!f||!f.use||f.u)return;const t=f.ab||f.t,ru=RULES.find(x=>x.r.test(t)),n=needs(ru,t);
-  if(!p.al&&!(ru&&ru.d))return;if(n.includes('t')&&!(P(m.t)&&P(m.t).al&&m.t!=i))return;if(n.includes('k')&&!S.labels.includes(m.k))return;
-  let r=ru&&ru.f?ru.f(p,m,t):null;if(r===false)return render();f.u=1;let sec=0;if(r&&r.s){sec=1;r=null}
-  if(!sec){f.r=1;lg(r||`${p.name} применяет способность: ${t}`)}}
+  if(!p.al&&!(ru&&ru.d))return;if(ru&&ru.d&&!(f.r&&!p.al))return;if(n.includes('t')&&!(P(m.t)&&P(m.t).al&&m.t!=i))return;if(n.includes('k')&&!S.labels.includes(m.k))return;
+  let r=ru&&ru.f?ru.f(p,m,t):null;if(r===false)return render();f.u=1;let sec=0,pub=null,prv=null,pv=i;if(typeof r=='string')pub=r;else if(r&&r.s)sec=1;else if(r){pub=r.l;prv=r.p;if(r.pv!=null)pv=r.pv}
+  if(!sec){f.r=1;lg(pub||`${p.name} применяет способность: ${t}`);if(prv)lg(prv,pv)}}
  else if(A=='roll'||A=='reroll'){let n,md;
   if(A=='reroll'){if(!p.lr||!p.f.some(f=>f.r&&/перебрасывать результат кубика/.test(f.ab||f.t)))return;({n,md}=p.lr)}
   else{n=Math.max(1,Math.min(10,+m.n||1));md=Math.max(-50,Math.min(50,+m.md||0))}
@@ -138,17 +138,21 @@ function act(i,m){const p=P(i);if(!p)return;const h=!!p.host,A=m.a;
  else if(A=='vopen'){const al=S.pl.filter(q=>q.al);if(al.length<2)return;S.round++;S.vote={open:1,c:S.duel||al.map(q=>q.id),v:{},res:null,duel:!!S.duel};lg(S.duel?`Раунд ${S.round}: дуэль! Голосуют все, кроме дуэлянтов`:`Раунд ${S.round}: голосование за изгнание`);S.duel=null}
  else if(A=='vclose'){if(S.vote&&S.vote.open)tally()}
  else if(A=='expel'){const q=P(m.pid);if(!q)return;if(q.al&&q.imm){q.imm=0;lg(`${q.name} избегает изгнания`)}else{q.al=!q.al;lg(q.al?`${q.name} возвращён в игру`:`${q.name} изгнан`)}}
- else if(A=='hre'){const q=P(m.pid),f=q&&gf(q,m.k);if(f){rr(q,f);lg(`Хост меняет у ${q.name} характеристику «${m.k}»`)}}
+ else if(A=='hre'){const q=P(m.pid);if(!q)return;const f=m.k=='*'?pick(q.f.filter(f=>!f.lock&&!/^Пол/.test(f.cn[0]))):gf(q,m.k);if(!f)return;
+  const bk={k:f.k,s:{t:f.t,ab:f.ab,b:f.b,gi:f.gi,p:f.p}},x=rr(q,f);
+  if(x){q.undo=bk;if(x.r)lg(`Хост меняет у ${q.name} ${dsc(x)}`);else{lg(`Хост меняет у ${q.name} скрытую характеристику «${x.k}»`);lg(`Хост изменил вашу характеристику ${dsc(x)}`,q.id)}}}
+ else if(A=='hun'){const q=P(m.pid),u=q&&q.undo,f=u&&gf(q,u.k);if(!f)return;const x={k:f.k,o:f.t,n:u.s.t,r:f.r};Object.assign(f,u.s);q.undo=null;
+  if(x.r)lg(`Хост откатывает у ${q.name} ${dsc(x)}`);else{lg(`Хост откатывает у ${q.name} скрытую характеристику «${x.k}»`);lg(`Хост откатил вашу характеристику ${dsc(x)}`,q.id)}}
  else if(A=='hnew'){const q=P(m.pid);if(q){deal(q);lg(`Хост выдаёт ${q.name} новую карточку`)}}
  render()}
 
 /* ---------- сеть ---------- */
-function view(p){const own=q=>q===p;return{me:p.id,h:!!p.host,code:S.code,ph:S.ph,cat:S.cat,bun:S.bun,log:S.log.slice(-60),round:S.round,duel:!!S.duel,
+function view(p){const own=q=>q===p;return{me:p.id,h:!!p.host,code:S.code,ph:S.ph,cat:S.cat,bun:S.bun,log:S.log.filter(l=>l.v==null||l.v==p.id).slice(-60).map(l=>l.t),round:S.round,duel:!!S.duel,
  vote:S.vote&&{open:S.vote.open,c:S.vote.c,duel:S.vote.duel,vd:Object.keys(S.vote.v).map(Number),res:S.vote.res},roll:S.roll,
  asks:S.asks.filter(a=>a.to==p.id).map(a=>({id:a.id,f:P(a.from).name,k:a.k})),labels:S.labels||[],cn:S.sc?S.sc.cats.map(c=>c.n):[],grp:S.gtxt,sc:!!S.sc,
  pl:S.pl.map(q=>({id:q.id,n:q.name,al:q.al,h:!!q.host,on:!!(q.host||q.on),
   f:S.ph=='game'?q.f.map(f=>({k:f.k,r:f.r,u:f.u,use:own(q)&&f.use,t:(own(q)||f.r)?f.t:null,p:own(q)?f.p:null,a:own(q)?(f.ab||f.t):null})):[],
-  x:q.x.map(x=>({t:(own(q)||x.r)?x.t:null})),}))}}
+  x:q.x.map(x=>({r:!!x.r,t:(own(q)||x.r)?x.t:null})),}))}}
 const norm=v=>{v.pl=(v.pl||[]).map(q=>({...q,f:q.f||[],x:q.x||[]}));['asks','log','labels','cn'].forEach(k=>v[k]=v[k]||[]);if(v.vote){v.vote.c=v.vote.c||[];v.vote.vd=v.vote.vd||[]}return v};
 function render(){const u={};S.pl.forEach(p=>{const v=JSON.parse(JSON.stringify(view(p)));if(p.host){V=norm(JSON.parse(JSON.stringify(v)));draw()}u['view/'+p.uid]=v});db.ref('rooms/'+S.code).update(u).catch(er=>setSt('Ошибка записи: '+er.message))}
 function onJoin(sn){const u=sn.key,j=sn.val()||{};let p=S.pl.find(q=>q.uid==u);
@@ -193,10 +197,11 @@ function home(){const r=new URLSearchParams(location.search).get('r')||'';
 const lobby=()=>`<h2>Бункер — комната ${e(V.code)}</h2><p>Ссылка для друзей: <input readonly size=42 value="${e(location.origin+location.pathname+'?r='+V.code)}" onclick="this.select()"></p><h3>Игроки (${V.pl.length}/12)</h3>${V.pl.map(p=>`<div>${e(p.n)}${p.h?' (хост)':''}${p.on?'':' — не в сети'}</div>`).join('')}`+
  (V.h?`<h3>Сценарий</h3><input type=file accept=".txt" onchange="ld(this)"> ${V.sc?'✔ загружен':''}<p>Объединённые поля (группы через «;», названия через «+»):<br><input id=gt size=60 value="${e(V.grp)}" onchange="snd({a:'grp',g:this.value})"></p><button onclick="snd({a:'start'})">Старт</button> <small>нужно минимум 2 игрока и файл сценария</small>`:'<p>Ждём, пока хост начнёт игру…</p>');
 const topbar=()=>`<div class=c><b>Комната ${e(V.code)}</b>, раунд ${V.round}<div class=row><div style="flex:1 1 250px"><b>Катаклизм</b>${V.h?`<textarea id=tc rows=3 style="width:100%;box-sizing:border-box" onchange="cb()">${e(V.cat)}</textarea>`:`<div>${e(V.cat)||'—'}</div>`}</div><div style="flex:1 1 250px"><b>Бункер</b>${V.h?`<textarea id=tb rows=3 style="width:100%;box-sizing:border-box" onchange="cb()">${e(V.bun)}</textarea>`:`<div>${e(V.bun)||'—'}</div>`}</div></div></div>`;
+const abOk=(f,q)=>{const ru=RULES.find(x=>x.r.test(f.a||''));return ru&&ru.d?(f.r&&!q.al):q.al};
 function card(q){const o=q.id==V.me;return `<div class="c ${q.al?'':'d'}"><b>${e(q.n)}</b>${o?' (вы)':''}${q.al?'':' — ИЗГНАН'}${q.on?'':' ⚠ не в сети'}`+
- q.f.map((f,i)=>`<div class="f ${f.r?'r':''}"><b>${e(f.k)}:</b> ${f.t==null?'<i>скрыто</i>':e(f.t)}${f.p?` <small>(${e(f.p)})</small>`:''}${o&&!f.r?` <button onclick="snd({a:'rev',fi:${i}})">Раскрыть</button>`:''}${o&&f.use&&!f.u?` <button onclick="ab(${i})">Применить</button>`:''}</div>`).join('')+
+ q.f.map((f,i)=>`<div class="f ${f.r?'r':''}"><b>${e(f.k)}:</b> ${f.t==null?'<i>скрыто</i>':e(f.t)}${f.p?` <small>(${e(f.p)})</small>`:''}${o&&!f.r?` <button onclick="snd({a:'rev',fi:${i}})">Раскрыть</button>`:''}${o&&f.use&&!f.u&&abOk(f,q)?` <button onclick="ab(${i})">Применить</button>`:''}</div>`).join('')+
  (q.x.length?'<div class=f><b>Дополнительно:</b></div>'+q.x.map((x,i)=>`<div class=f>• ${x.t==null?'<i>скрыто</i>':e(x.t)}${o&&x.t!=null&&!x.r?` <button onclick="snd({a:'revx',i:${i}})">Раскрыть</button>`:''}</div>`).join(''):'')+
- (V.h&&!o?`<div class=f><select id=hs${q.id}>${V.labels.map(l=>`<option>${e(l)}</option>`).join('')}</select> <button onclick="snd({a:'hre',pid:${q.id},k:$('#hs${q.id}').value})">↻</button> <button onclick="snd({a:'hnew',pid:${q.id}})">Новая карточка</button></div>`:'')+
+ (V.h?`<div class=f><select id=hs${q.id}><option value="*">🎲 Случайная</option>${V.labels.map(l=>`<option>${e(l)}</option>`).join('')}</select> <button onclick="snd({a:'hre',pid:${q.id},k:$('#hs${q.id}').value})">🎲 Получить</button> <button title="Откатить последний прокрут" onclick="snd({a:'hun',pid:${q.id}})">↩</button></div>`:'')+
  (V.h?`<button onclick="snd({a:'expel',pid:${q.id}})">${q.al?'Изгнать':'Вернуть'}</button>`:'')+'</div>'}
 function side(){const vt=V.vote,me=V.pl.find(p=>p.id==V.me),nm=id=>e(V.pl.find(p=>p.id==id).n);
  let s=V.asks.map(a=>`<div class=c>${e(a.f)} предлагает поменяться «${e(a.k)}» <button onclick="snd({a:'ans',id:${a.id},y:1})">Согласен</button> <button onclick="snd({a:'ans',id:${a.id},y:0})">Отказаться</button></div>`).join('');
@@ -205,7 +210,6 @@ function side(){const vt=V.vote,me=V.pl.find(p=>p.id==V.me),nm=id=>e(V.pl.find(p
  if(vt&&vt.open){const can=me.al&&!(vt.duel&&vt.c.includes(V.me));s+=`<div>Проголосовало: ${vt.vd.length}</div>`+(can?(vt.vd.includes(V.me)?'<div>Ваш голос принят</div>':vt.c.filter(id=>id!=V.me).map(id=>`<div><button onclick="snd({a:'vote',to:${id}})">${nm(id)}</button></div>`).join('')):'<div>Вы не голосуете</div>')}
  else if(vt&&vt.res)s+=vt.res.map(r=>`<div>${nm(r.id)} — ${r.n}${V.h&&r.imm?' <small>(может избежать изгнания)</small>':''}</div>`).join('')+(V.h?'<small>Изгнать можно кнопкой в карточке</small>':'');
  s+='</div>';
- s+=`<div class=c><b>Генератор</b><br><select id=gc>${V.cn.map(n=>`<option>${e(n)}</option>`).join('')}</select> <button onclick="snd({a:'gen',c:$('#gc').value})">Получить</button> <button onclick="snd({a:'gen'})">Случайная</button></div>`;
  return s+`<div class=c><b>Журнал</b><div id=lg>${V.log.slice().reverse().map(l=>`<div>${e(l)}</div>`).join('')}</div></div>`}
 function draw(){if(!V)return;const a=document.activeElement,id=a&&a.id,val=a&&a.value,ss=a&&a.selectionStart;
  if(V.ph=='lobby')$('#app').innerHTML=lobby();
