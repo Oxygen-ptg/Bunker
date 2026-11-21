@@ -153,12 +153,16 @@ function onConn(c){c.on('data',m=>{if(m.t=='join'){let p=S.pl.find(q=>q.tok==m.k
  else{const p=S.pl.find(q=>q.conn==c);if(p)act(p.id,m)}});c.on('close',()=>setTimeout(render,300))}
 const newS=c=>({code:c,ph:'lobby',pl:[],sc:null,gtxt:'',plan:[],labels:[],cat:'',bun:'',log:[],vote:null,duel:null,round:0,roll:{seq:0,t:''},asks:[],aid:1,nid:1,taken:{}});
 function mkH(){const name=$('#nm').value.trim()||'Хост',A='ABCDEFGHJKLMNPQRSTUVWXYZ23456789',c=Array.from({length:4},()=>A[rnd(0,A.length-1)]).join('');
- peer=new Peer('bunker-'+c);peer.on('error',er=>{if(er.type=='unavailable-id')mkH();else alert('Ошибка сети: '+er.type)});
+ peer=new Peer('bunker-'+c);peer.on('error',er=>{if(er.type=='unavailable-id')mkH();else setSt('Ошибка сети: '+er.type)});
  peer.on('open',()=>{isHost=true;S=newS(c);S.pl.push({id:0,name,tok,host:1,al:true,f:[],x:[]});S.nid=1;peer.on('connection',onConn);render()})}
-function jn(){const name=$('#nm').value.trim()||'Игрок',c=$('#cd').value.trim().toUpperCase();if(!c)return alert('Введите код комнаты');
- peer=new Peer();peer.on('error',er=>alert(er.type=='peer-unavailable'?'Комната не найдена':'Ошибка сети: '+er.type));
- peer.on('open',()=>{conn=peer.connect('bunker-'+c,{reliable:true});conn.on('open',()=>conn.send({t:'join',n:name,k:tok}));
-  conn.on('data',m=>{if(m.t=='st'){V=m.v;draw()}else if(m.t=='err')alert(m.m)});conn.on('close',()=>alert('Связь с хостом потеряна. Обновите страницу и войдите снова.'))})}
+const setSt=t=>{const s=$('#st');if(s)s.textContent=t;else alert(t)};
+function jn(){const name=$('#nm').value.trim()||'Игрок',c=$('#cd').value.trim().toUpperCase();if(!c)return setSt('Введите код комнаты');
+ setSt('Подключаюсь…');let ok=0;
+ setTimeout(()=>{if(!ok)setSt('Не удалось соединиться за 20 секунд. Проверьте код, что хост не закрыл вкладку и что у всех отключён VPN.')},20000);
+ peer=new Peer();peer.on('error',er=>setSt(er.type=='peer-unavailable'?'Комната с таким кодом не найдена. Проверьте код и что хост уже создал комнату.':'Ошибка сети: '+er.type));
+ peer.on('open',()=>{setSt('Ищу комнату…');conn=peer.connect('bunker-'+c,{reliable:true});
+  conn.on('open',()=>{ok=1;conn.send({t:'join',n:name,k:tok})});conn.on('error',er=>setSt('Ошибка соединения: '+er));
+  conn.on('data',m=>{if(m.t=='st'){V=m.v;draw()}else if(m.t=='err'){ok=1;setSt(m.m)}});conn.on('close',()=>setSt('Связь с хостом потеряна. Обновите страницу и войдите снова.'))})}
 const snd=m=>isHost?act(0,m):conn&&conn.send(m);
 function ld(inp){const f=inp.files[0];if(!f)return;const r=new FileReader();r.onload=()=>{S.sc=parse(r.result);const n=S.sc.cats.map(c=>c.n);
  S.gtxt=[['Рост','Телосложение'],['Раса','Возраст','Пол']].map(g=>g.filter(x=>n.includes(x))).filter(g=>g.length).map(g=>g.join('+')).join('; ');render()};r.readAsText(f,'utf-8')}
@@ -172,7 +176,7 @@ function ab(i){const f=V.pl.find(p=>p.id==V.me).f[i],ru=RULES.find(x=>x.r.test(f
  if(!n)snd({a:'use',fi:i});else pop(n,o=>snd({a:'use',fi:i,...o}))}
 const cb=()=>snd({a:'cb',c:$('#tc').value,b:$('#tb').value}),md=d=>{$('#dm').value=+$('#dm').value+d};
 function home(){const r=new URLSearchParams(location.search).get('r')||'';
- $('#app').innerHTML=`<h2>Бункер</h2><p><input id=nm placeholder="Ваше имя" maxlength=20></p><p><button onclick="mkH()">Создать комнату</button></p><p><input id=cd placeholder="Код комнаты" value="${e(r)}" maxlength=4 size=8> <button onclick="jn()">Войти</button></p>`}
+ $('#app').innerHTML=`<h2>Бункер</h2><p><input id=nm placeholder="Ваше имя" maxlength=20></p><p><button onclick="mkH()">Создать комнату</button></p><p><input id=cd placeholder="Код комнаты" value="${e(r)}" maxlength=4 size=8> <button onclick="jn()">Войти</button></p><p id=st></p>`}
 const lobby=()=>`<h2>Бункер — комната ${e(V.code)}</h2><p>Ссылка для друзей: <input readonly size=42 value="${e(location.origin+location.pathname+'?r='+V.code)}" onclick="this.select()"></p><h3>Игроки (${V.pl.length}/12)</h3>${V.pl.map(p=>`<div>${e(p.n)}${p.h?' (хост)':''}${p.on?'':' — не в сети'}</div>`).join('')}`+
  (V.h?`<h3>Сценарий</h3><input type=file accept=".txt" onchange="ld(this)"> ${V.sc?'✔ загружен':''}<p>Объединённые поля (группы через «;», названия через «+»):<br><input id=gt size=60 value="${e(V.grp)}" onchange="snd({a:'grp',g:this.value})"></p><button onclick="snd({a:'start'})">Старт</button> <small>нужно минимум 2 игрока и файл сценария</small>`:'<p>Ждём, пока хост начнёт игру…</p>');
 const topbar=()=>`<div class=c><b>Комната ${e(V.code)}</b>, раунд ${V.round}<div class=row><div style="flex:1 1 250px"><b>Катаклизм</b>${V.h?`<textarea id=tc rows=3 style="width:100%;box-sizing:border-box" onchange="cb()">${e(V.cat)}</textarea>`:`<div>${e(V.cat)||'—'}</div>`}</div><div style="flex:1 1 250px"><b>Бункер</b>${V.h?`<textarea id=tb rows=3 style="width:100%;box-sizing:border-box" onchange="cb()">${e(V.bun)}</textarea>`:`<div>${e(V.bun)||'—'}</div>`}</div></div></div>`;
