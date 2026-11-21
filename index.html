@@ -14,7 +14,9 @@ button{cursor:pointer}button:hover{background:#353849}
 #lg{max-height:240px;overflow:auto;font-size:13px}#lg div{margin:3px 0}
 h2,h3{margin:6px 0}
 </style></head><body><div id="app"></div>
-<script src="https://cdn.jsdelivr.net/npm/peerjs@1.5.4/dist/peerjs.min.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
 <script>
 const $=s=>document.querySelector(s),e=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const rnd=(a,b)=>a+Math.floor(Math.random()*(b-a+1)),pick=a=>a[rnd(0,a.length-1)],cap=s=>s?s[0].toUpperCase()+s.slice(1):s;
@@ -23,7 +25,9 @@ MT=['камень','глина','железо','дерево','лёд','золо
 LM=['левая рука','правая рука','левая нога','правая нога','обе ноги','кисть руки','стопа','пальцы'];
 const L={'Профессии':'Профессия','Спец. возможности':'Спец. возможность','Доп. сведенья':'Доп. сведения'},lab=g=>g.map(n=>L[n]||n).join(' / ');
 const yrs=n=>n%10==1&&n%100!=11?'год':[2,3,4].includes(n%10)&&![12,13,14].includes(n%100)?'года':'лет';
-let S,V,peer,conn,isHost=false,lastSeq=null,tok=sessionStorage.btok||(sessionStorage.btok=Math.random().toString(36).slice(2));
+firebase.initializeApp({apiKey:'AIzaSyCcNv5vEXpdwNrvAQodgYc_bKMo8p_UrAk',authDomain:'bunker-ad1fb.firebaseapp.com',databaseURL:'https://bunker-ad1fb-default-rtdb.firebaseio.com',projectId:'bunker-ad1fb',appId:'1:314157592540:web:f21d380d4b0852d477a919'});
+const db=firebase.database();let RC,UID,_u=null;
+let S,V,isHost=false,lastSeq=null,tok=sessionStorage.btok||(sessionStorage.btok=Math.random().toString(36).slice(2));
 const P=id=>S.pl.find(q=>q.id==id),lg=t=>{S.log.push(t);if(S.log.length>150)S.log.shift()},
 oth=p=>{const a=S.pl.filter(q=>q!==p);return a.length?pick(a).name:'?'};
 
@@ -142,28 +146,37 @@ function act(i,m){const p=P(i);if(!p)return;const h=!!p.host,A=m.a;
 function view(p){const own=q=>q===p;return{me:p.id,h:!!p.host,code:S.code,ph:S.ph,cat:S.cat,bun:S.bun,log:S.log.slice(-60),round:S.round,duel:!!S.duel,
  vote:S.vote&&{open:S.vote.open,c:S.vote.c,duel:S.vote.duel,vd:Object.keys(S.vote.v).map(Number),res:S.vote.res},roll:S.roll,
  asks:S.asks.filter(a=>a.to==p.id).map(a=>({id:a.id,f:P(a.from).name,k:a.k})),labels:S.labels||[],cn:S.sc?S.sc.cats.map(c=>c.n):[],grp:S.gtxt,sc:!!S.sc,
- pl:S.pl.map(q=>({id:q.id,n:q.name,al:q.al,h:!!q.host,on:!!(q.host||(q.conn&&q.conn.open)),
+ pl:S.pl.map(q=>({id:q.id,n:q.name,al:q.al,h:!!q.host,on:!!(q.host||q.on),
   f:S.ph=='game'?q.f.map(f=>({k:f.k,r:f.r,u:f.u,use:own(q)&&f.use,t:(own(q)||f.r)?f.t:null,p:own(q)?f.p:null,a:own(q)?(f.ab||f.t):null})):[],
   x:q.x.map(x=>({t:(own(q)||x.r)?x.t:null})),}))}}
-function render(){S.pl.forEach(p=>{if(p.host){V=view(p);draw()}else if(p.conn&&p.conn.open)p.conn.send({t:'st',v:view(p)})})}
-function onConn(c){c.on('data',m=>{if(m.t=='join'){let p=S.pl.find(q=>q.tok==m.k);
-  if(p)p.conn=c;else if(S.ph!='lobby'){c.send({t:'err',m:'Игра уже идёт'});return}
-  else if(S.pl.length>=12){c.send({t:'err',m:'Комната заполнена (12 игроков)'});return}
-  else S.pl.push({id:S.nid++,name:String(m.n||'Игрок').slice(0,20),tok:m.k,conn:c,al:true,f:[],x:[]});render()}
- else{const p=S.pl.find(q=>q.conn==c);if(p)act(p.id,m)}});c.on('close',()=>setTimeout(render,300))}
+const norm=v=>{v.pl=(v.pl||[]).map(q=>({...q,f:q.f||[],x:q.x||[]}));['asks','log','labels','cn'].forEach(k=>v[k]=v[k]||[]);if(v.vote){v.vote.c=v.vote.c||[];v.vote.vd=v.vote.vd||[]}return v};
+function render(){const u={};S.pl.forEach(p=>{const v=JSON.parse(JSON.stringify(view(p)));if(p.host){V=norm(JSON.parse(JSON.stringify(v)));draw()}u['view/'+p.uid]=v});db.ref('rooms/'+S.code).update(u).catch(er=>setSt('Ошибка записи: '+er.message))}
+function onJoin(sn){const u=sn.key,j=sn.val()||{};let p=S.pl.find(q=>q.uid==u);
+ if(!p){const er=m=>db.ref(`rooms/${S.code}/view/${u}`).set({err:m});if(S.ph!='lobby')return er('Игра уже идёт');if(S.pl.length>=12)return er('Комната заполнена (12 игроков)');
+  S.pl.push({id:S.nid++,name:String(j.n||'Игрок').slice(0,20),uid:u,al:true,f:[],x:[]})}render()}
+function onAct(sn){const a=sn.val()||{};sn.ref.remove();const p=S.pl.find(q=>q.uid==a.u);if(p&&a.m)act(p.id,a.m)}
+function onPres(sn){const v=sn.val()||{};S.pl.forEach(p=>{p.on=!!v[p.uid]});render()}
+async function login(){if(_u)return _u;const a=firebase.auth();await a.setPersistence(firebase.auth.Auth.Persistence.SESSION);return _u=(await a.signInAnonymously()).user.uid}
 const newS=c=>({code:c,ph:'lobby',pl:[],sc:null,gtxt:'',plan:[],labels:[],cat:'',bun:'',log:[],vote:null,duel:null,round:0,roll:{seq:0,t:''},asks:[],aid:1,nid:1,taken:{}});
-function mkH(){const name=$('#nm').value.trim()||'Хост',A='ABCDEFGHJKLMNPQRSTUVWXYZ23456789',c=Array.from({length:4},()=>A[rnd(0,A.length-1)]).join('');
- peer=new Peer('bunker-'+c);peer.on('error',er=>{if(er.type=='unavailable-id')mkH();else setSt('Ошибка сети: '+er.type)});
- peer.on('open',()=>{isHost=true;S=newS(c);S.pl.push({id:0,name,tok,host:1,al:true,f:[],x:[]});S.nid=1;peer.on('connection',onConn);render()})}
+async function mkH(){const name=$('#nm').value.trim()||'Хост';setSt('Создаю комнату…');
+ try{const uid=await login(),A='ABCDEFGHJKLMNPQRSTUVWXYZ23456789';let c=null;
+  for(let i=0;i<6&&!c;i++){const t=Array.from({length:4},()=>A[rnd(0,A.length-1)]).join('');try{await db.ref('rooms/'+t+'/host').set(uid);c=t}catch(x){}}
+  if(!c)return setSt('Не удалось создать комнату. Проверьте правила базы (вкладка Rules) и включён ли анонимный вход.');
+  isHost=true;RC=c;UID=uid;S=newS(c);S.pl.push({id:0,name,uid,host:1,al:true,f:[],x:[]});S.nid=1;
+  const r=db.ref('rooms/'+c);r.child('join').on('child_added',onJoin);r.child('join').on('child_changed',onJoin);r.child('act').on('child_added',onAct);r.child('pres').on('value',onPres);render()
+ }catch(er){setSt('Ошибка: '+(er.message||er))}}
 const setSt=t=>{const s=$('#st');if(s)s.textContent=t;else alert(t)};
-function jn(){const name=$('#nm').value.trim()||'Игрок',c=$('#cd').value.trim().toUpperCase();if(!c)return setSt('Введите код комнаты');
- setSt('Подключаюсь…');let ok=0;
- setTimeout(()=>{if(!ok)setSt('Не удалось соединиться за 20 секунд. Проверьте код, что хост не закрыл вкладку и что у всех отключён VPN.')},20000);
- peer=new Peer();peer.on('error',er=>setSt(er.type=='peer-unavailable'?'Комната с таким кодом не найдена. Проверьте код и что хост уже создал комнату.':'Ошибка сети: '+er.type));
- peer.on('open',()=>{setSt('Ищу комнату…');conn=peer.connect('bunker-'+c,{reliable:true});
-  conn.on('open',()=>{ok=1;conn.send({t:'join',n:name,k:tok})});conn.on('error',er=>setSt('Ошибка соединения: '+er));
-  conn.on('data',m=>{if(m.t=='st'){V=m.v;draw()}else if(m.t=='err'){ok=1;setSt(m.m)}});conn.on('close',()=>setSt('Связь с хостом потеряна. Обновите страницу и войдите снова.'))})}
-const snd=m=>isHost?act(0,m):conn&&conn.send(m);
+async function jn(){const name=$('#nm').value.trim()||'Игрок',c=$('#cd').value.trim().toUpperCase();if(!c)return setSt('Введите код комнаты');
+ setSt('Подключаюсь…');
+ try{const uid=await login(),h=await db.ref('rooms/'+c+'/host').once('value');
+  if(!h.exists())return setSt('Комната с кодом '+c+' не найдена. Хост должен сначала создать комнату.');
+  RC=c;UID=uid;const pr=db.ref(`rooms/${c}/pres/${uid}`);
+  db.ref('.info/connected').on('value',x=>{if(x.val()){pr.onDisconnect().remove();pr.set(true)}});
+  db.ref(`rooms/${c}/view/${uid}`).on('value',x=>{const v=x.val();if(!v)return;if(v.err)return setSt(v.err);V=norm(v);draw()});
+  await db.ref(`rooms/${c}/join/${uid}`).set({n:name,t:Date.now()});
+  setTimeout(()=>{if(!V)setSt('Хост не отвечает. Пусть хост обновит страницу и создаст комнату заново.')},15000)
+ }catch(er){setSt('Ошибка: '+(er.message||er))}}
+const snd=m=>isHost?act(0,m):db.ref('rooms/'+RC+'/act').push({u:UID,m});
 function ld(inp){const f=inp.files[0];if(!f)return;const r=new FileReader();r.onload=()=>{S.sc=parse(r.result);const n=S.sc.cats.map(c=>c.n);
  S.gtxt=[['Рост','Телосложение'],['Раса','Возраст','Пол']].map(g=>g.filter(x=>n.includes(x))).filter(g=>g.length).map(g=>g.join('+')).join('; ');render()};r.readAsText(f,'utf-8')}
 
